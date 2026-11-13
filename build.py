@@ -40,7 +40,7 @@ def main():
     print("+", " ".join(command), flush=True)
     subprocess.run(command, check=True)
     inspections = {}
-    for name in ("main", "pack", "pack_opt", "runtime", "sme32", "sme_opt", "sme_pack"):
+    for name in ("main", "pack", "sme", "accelerate"):
         assembly = subprocess.check_output(["xcrun", "llvm-objdump", "-d", "--mattr=+sme,+sme2",
                                            str(BUILD / f"{name}.o")], text=True)
         (BUILD / f"{name}.disasm.txt").write_text(assembly)
@@ -49,17 +49,15 @@ def main():
             "four_vector_loads": len(re.findall(r"\bld1w\s+\{\s*z\d+\.s,\s*z\d+\.s,\s*z\d+\.s,\s*z\d+\.s\s*\}", assembly)),
             "neon_fmla_count": len(re.findall(r"\bfmla(?:\.4s)?\s+v", assembly)),
             "matrix_or_streaming_instructions": len(re.findall(r"\b(?:fmopa|bfmopa|smopa|umopa|smstart|smstop)\b", assembly))}
-        if name in ("main", "pack", "pack_opt") and inspections[name]["matrix_or_streaming_instructions"]:
+        if name == "main" and inspections[name]["matrix_or_streaming_instructions"]:
             raise RuntimeError(f"Unexpected SME instructions in {name}")
-    if inspections["sme32"]["fmopa_tiles"] != [0, 1, 2, 3]:
-        raise RuntimeError("SME32 must use ZA0, ZA1, ZA2 and ZA3")
-    if inspections["sme_opt"]["fmopa_tiles"] != [0, 1, 2, 3]:
-        raise RuntimeError("Optimized SME must use four ZA tiles")
-    if not inspections["sme_opt"]["four_vector_loads"]:
+    if inspections["sme"]["fmopa_tiles"] != [0, 1, 2, 3]:
+        raise RuntimeError("SME must use ZA0, ZA1, ZA2 and ZA3")
+    if not inspections["sme"]["four_vector_loads"]:
         raise RuntimeError("Expected SME2 four-vector loads are missing")
     tracked = [*sources, HERE / "src/gemm.h", Path(__file__).resolve()]
     settings = {name: int(re.search(rf"\b{name}\s*=\s*(\d+)", (HERE/"src/gemm.h").read_text())[1])
-                for name in ("OPT_KC", "OPT_MC", "OPT_NC", "DIRECT_B_MAX")}
+                for name in ("KC", "MC", "NC", "DIRECT_B_MAX")}
     manifest = {"compiler": subprocess.check_output([cc, "--version"], text=True).strip(),
                 "flags": flags, "source_sha256": {str(p.relative_to(ROOT)): digest(p) for p in tracked},
                 "binary_sha256": digest(binary), "inspection": inspections, "tuning": settings,

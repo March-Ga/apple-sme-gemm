@@ -1,0 +1,176 @@
+{
+  "reference_commit": "12a449ed8df591d8946f6581efbc32581d2c3d28",
+  "started_at": "2026-11-13T14:14:03.379852+01:00",
+  "hardware": {
+    "cpu": "Apple M4 Pro",
+    "memory": "48 GB",
+    "model": "Mac16,8",
+    "cores": "proc 14:10:4"
+  },
+  "platform": "macOS-15.7.3-arm64-arm-64bit-Mach-O",
+  "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=6750307)\t62%; discharging; 9:24 remaining present: true",
+  "protocol": "One thread, total packing+compute; randomized interleaving of revisions/backends within each dimension/round; same seed; 3 rounds x 7 samples; batch target >=30ms.",
+  "builds": {
+    "reference": {
+      "compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)\nTarget: arm64-apple-darwin24.6.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin",
+      "flags": [
+        "-isysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-mmacosx-version-min=15.0",
+        "-std=c11",
+        "-O3",
+        "-DNDEBUG",
+        "-mcpu=apple-m4",
+        "-fno-fast-math",
+        "-ffp-contract=fast",
+        "-fno-lto",
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-Werror",
+        "-pthread"
+      ],
+      "source_sha256": {
+        "main.c": "45c4ad3699e7760a865a9f37b109d9fd8fbdbed37652f4aa466db72269dc68c6",
+        "src/accelerate.c": "b0eb80ce377707b88330f341ff491e7219b050f880880ac2d23e6ad8e4587077",
+        "src/pack.c": "2af12ecbe9206e1ab47979c3124b1f9da73c5a1ced2a1619eb6fbe794e6ae930",
+        "src/pack_opt.c": "0171102f0f5b974e60af353e49f3b72eec51140783d6c4ef20558b80a92e5585",
+        "src/runtime.c": "7e5dd2851fc13ed744bc11ec42263bddfd76a5c7113f1f1a86cb5024afcc99ca",
+        "src/sme32.c": "c210b893a32938c2cd10c33560d0716293183abbebcc253605a13ae629dea356",
+        "src/sme_opt.c": "14c9e95c7cb2e1735847971302df197418a325e96571f58ac3c50f16cb2ba815",
+        "src/sme_pack.c": "e051c9c71a19471696a24bb74374501a0233c3c439ac84030459efbb5679f879",
+        "src/gemm.h": "74d662a19f6c13b95ed803c1ac39362fb30abad31ea74ac33f0c9b731243abed",
+        "build.py": "d60a479e2969f1a2752d0191e6fe50857c280f5237c36c5774317bb3f434381e"
+      },
+      "binary_sha256": "d58ffd492381924dec44dc78774ca67581e705b07989a16b95b3b0b33e183166",
+      "inspection": {
+        "main": {
+          "fmopa_tiles": [],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 0
+        },
+        "pack": {
+          "fmopa_tiles": [],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 0
+        },
+        "pack_opt": {
+          "fmopa_tiles": [],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 0
+        },
+        "runtime": {
+          "fmopa_tiles": [],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 0
+        },
+        "sme32": {
+          "fmopa_tiles": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 12
+        },
+        "sme_opt": {
+          "fmopa_tiles": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "four_vector_loads": 10,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 52
+        },
+        "sme_pack": {
+          "fmopa_tiles": [],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 4
+        }
+      },
+      "tuning": {
+        "OPT_KC": 2048,
+        "OPT_MC": 256,
+        "OPT_NC": 512,
+        "DIRECT_B_MAX": 512
+      },
+      "format": "square FP32, row-major inputs, backend-specific packing, one thread"
+    },
+    "clean": {
+      "compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)\nTarget: arm64-apple-darwin24.6.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin",
+      "flags": [
+        "-isysroot",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-mmacosx-version-min=15.0",
+        "-std=c11",
+        "-O3",
+        "-DNDEBUG",
+        "-mcpu=apple-m4",
+        "-fno-fast-math",
+        "-ffp-contract=fast",
+        "-fno-lto",
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-Werror",
+        "-pthread"
+      ],
+      "source_sha256": {
+        "main.c": "d1799ba43647675082e63d7d959d73ef56766846e5576ebaf493bc78c30fc215",
+        "src/accelerate.c": "b0eb80ce377707b88330f341ff491e7219b050f880880ac2d23e6ad8e4587077",
+        "src/pack.c": "fe98d93a8678e2a2c50d3c1cf9808f85d6769e4f24c438481bbb781cd6249095",
+        "src/sme.c": "2017b65ce7d6b04cd2db50016f794ef151dfad4ed38627a1f823bb32a13f3e8e",
+        "src/gemm.h": "427b3953c33429d25200513cbf40af051dfd7c65ac237c29c8d084d4cfe53728",
+        "build.py": "73db3ab0a03dac274f23410ffe840734373ccb78b8ec21d3b4ecd2f7270aa799"
+      },
+      "binary_sha256": "3691dafba4f43af474c7970b50a6269da710b2b0f4c57b9e3b64b51ba20fb9dc",
+      "inspection": {
+        "main": {
+          "fmopa_tiles": [],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 0
+        },
+        "pack": {
+          "fmopa_tiles": [],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 4
+        },
+        "sme": {
+          "fmopa_tiles": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "four_vector_loads": 20,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 92
+        },
+        "accelerate": {
+          "fmopa_tiles": [],
+          "four_vector_loads": 0,
+          "neon_fmla_count": 0,
+          "matrix_or_streaming_instructions": 0
+        }
+      },
+      "tuning": {
+        "KC": 2048,
+        "MC": 256,
+        "NC": 512,
+        "DIRECT_B_MAX": 512
+      },
+      "format": "square FP32, row-major inputs, backend-specific packing, one thread"
+    }
+  }
+}

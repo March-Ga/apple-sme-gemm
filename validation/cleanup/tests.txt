@@ -1,0 +1,12 @@
+Packing layout PASS: 15 sizes, every packed value, B padding and end guard.
+Numerical regression PASS: SME + Accelerate, 15 sizes, 2 seeds, 2 overwrites, output guards.
+test_dry_run_launches_nothing (test_reporting.ReportingTests.test_dry_run_launches_nothing) ... ok
+test_invalid_size_rejected_before_execution (test_reporting.ReportingTests.test_invalid_size_rejected_before_execution) ... ok
+test_paired_ratios_and_missing_round (test_reporting.ReportingTests.test_paired_ratios_and_missing_round) ... ok
+test_unknown_backend_rejected (test_reporting.ReportingTests.test_unknown_backend_rejected) ... ok
+test_verification_only_has_no_fake_timings (test_reporting.ReportingTests.test_verification_only_has_no_fake_timings) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.003s
+
+OK

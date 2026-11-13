@@ -1,5 +1,5 @@
-// Build (no Eigen): python3 build.py
-// Run one case: ./build/sme_bench --backend sme32 --mode total --size 256
+// Build: python3 build.py
+// Run one case: ./build/sme_bench --backend sme --size 256
 #include "src/gemm.h"
 #include <errno.h>
 #include <float.h>
@@ -14,21 +14,19 @@
 #include <time.h>
 
 typedef void (*Gemm)(size_t, const float *, const float *, float *);
-typedef void (*Pack)(size_t, const float *, const float *, float *, float *);
 typedef struct {
     size_t n;
     unsigned samples, warmup;
     double target_ms;
     uint64_t seed;
-    const char *backend, *mode;
+    const char *backend;
     int verify_only;
 } Options;
 typedef struct {
     size_t n;
     float *a, *b, *c, *ap, *bp;
     Gemm compute;
-    Pack pack;
-    int total, apple, direct_b;
+    int apple, direct_b;
 } Job;
 typedef struct { size_t entries; double max_error; } Verification;
 
@@ -48,13 +46,12 @@ static uint64_t integer(const char *text) {
 
 static Options parse(int argc, char **argv) {
     Options o = {.n=256, .samples=7, .warmup=3, .target_ms=30,
-                 .seed=20261113, .backend="sme_opt", .mode="total", .verify_only=0};
+                 .seed=20261113, .backend="sme", .verify_only=0};
     for (int i = 1; i < argc; ++i) {
         const char *key = argv[i];
         if (!strcmp(key, "--help")) {
-            puts("Square FP32 GEMM, C=A*B, one thread; no Eigen.\n"
-                 "--backend sme32|sme_opt|accelerate\n"
-                 "--mode compute|total\n"
+            puts("Square FP32 GEMM, C=A*B, one thread; packing included.\n"
+                 "--backend sme|accelerate\n"
                  "--size N (32..8192, multiple of 32)\n"
                  "--samples N --warmup N --min-sample-ms N --seed N\n"
                  "--verify-only (compute and check, without timing samples)\n"
@@ -65,7 +62,6 @@ static Options parse(int argc, char **argv) {
         if (++i == argc) fail("Missing option value");
         const char *value = argv[i];
         if (!strcmp(key, "--backend")) o.backend = value;
-        else if (!strcmp(key, "--mode")) o.mode = value;
         else if (!strcmp(key, "--seed")) o.seed = integer(value);
         else if (!strcmp(key, "--size")) {
             const uint64_t number = integer(value);
@@ -83,10 +79,7 @@ static Options parse(int argc, char **argv) {
                 fail("min-sample-ms must be in [1,10000]");
         } else fail("Unknown option");
     }
-    if (strcmp(o.mode, "compute") && strcmp(o.mode, "total")) fail("Unknown mode");
-    if (strcmp(o.backend, "sme32") && strcmp(o.backend, "sme_opt") && strcmp(o.backend, "accelerate")) fail("Unknown backend");
-    if (!strcmp(o.backend, "accelerate") && !strcmp(o.mode, "compute"))
-        fail("Accelerate is a total-mode reference; it has no public prepacked interface");
+    if (strcmp(o.backend, "sme") && strcmp(o.backend, "accelerate")) fail("Unknown backend");
     return o;
 }
 
@@ -127,7 +120,7 @@ static uint64_t initialize(Job *job, uint64_t seed) {
 static void execute(Job *job) {
     if (job->apple) job->compute(job->n, job->a, job->b, job->c);
     else {
-        if (job->total) job->pack(job->n, job->a, job->b, job->ap, job->bp);
+        pack_inputs(job->n, job->a, job->b, job->ap, job->bp);
         job->compute(job->n, job->ap, job->direct_b ? job->b : job->bp, job->c);
     }
 }
@@ -192,26 +185,26 @@ int main(int argc, char **argv) {
     const Options o = parse(argc, argv);
     if (pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED, 0))
         fail("Cannot set requested thread QoS");
-    const int is_opt = !strcmp(o.backend, "sme_opt");
-    const int is_sme = !strcmp(o.backend, "sme32") || is_opt;
+    const int is_sme = !strcmp(o.backend, "sme");
     size_t vector_lanes = 0;
     if (is_sme) {
         if (!has_feature("hw.optional.arm.FEAT_SME")) fail("CPU/OS does not expose SME");
-        if (is_opt && !has_feature("hw.optional.arm.FEAT_SME2")) fail("Optimized backend requires SME2");
+        if (!has_feature("hw.optional.arm.FEAT_SME2")) fail("SME backend requires SME2");
         vector_lanes = sme_vector_lanes();
         if (vector_lanes != PANEL) fail("This kernel requires a 512-bit streaming vector length");
     }
-    Job job = {.n=o.n, .total=!strcmp(o.mode, "total"), .apple=!strcmp(o.backend, "accelerate")};
-    job.direct_b = is_opt && o.n <= DIRECT_B_MAX;
-    job.pack = is_opt ? pack_inputs_opt : pack_inputs;
-    job.compute = !strcmp(o.backend, "sme32") ? gemm_sme32 :
-                  is_opt ? gemm_sme_opt : gemm_accelerate;
+    Job job = {.n=o.n, .apple=!strcmp(o.backend, "accelerate")};
+    job.direct_b = is_sme && o.n <= DIRECT_B_MAX;
+    job.compute = is_sme ? gemm_sme : gemm_accelerate;
     if (job.apple && !accelerate_prepare()) fail("Cannot force Accelerate BLAS to one thread");
     const size_t count = o.n*o.n;
     job.a = allocate(count); job.b = allocate(count); job.c = allocate(count);
-    if (!job.apple) { job.ap = allocate(count); job.bp = allocate(count); }
+    if (is_sme) {
+        job.ap = allocate(count);
+        const size_t b_count = sme_packed_b_count(o.n);
+        if (b_count) job.bp = allocate(b_count);
+    }
     const uint64_t fingerprint = initialize(&job, o.seed);
-    if (!job.apple && !job.total) job.pack(o.n, job.a, job.b, job.ap, job.bp);
 
     const unsigned warmups = o.verify_only ? 1 : o.warmup;
     for (unsigned w = 0; w < warmups; ++w) execute(&job);
@@ -238,15 +231,14 @@ int main(int argc, char **argv) {
            "\"seed\":%" PRIu64 ",\"input_fingerprint\":\"%016" PRIx64 "\","
            "\"verified_entries\":%zu,\"max_scaled_error\":%.17g,\"verification_only\":%s,"
            "\"warmup_calls\":%u,\"batch_calls\":%" PRIu64 ",\"min_sample_ms\":%.17g,\"samples_ms\":[",
-           o.backend, o.mode, o.n, is_opt && (job.direct_b || o.n%64 == 0) ? OPT_KC : KC, PANEL, vector_lanes, o.seed, fingerprint,
+           o.backend, "total", o.n, is_sme ? KC : 0, PANEL, vector_lanes, o.seed, fingerprint,
            checked.entries, checked.max_error, o.verify_only ? "true" : "false", warmups,
            repetitions, o.target_ms);
     if (!o.verify_only)
         for (unsigned s = 0; s < o.samples; ++s) printf("%s%.17g", s ? "," : "", samples[s]);
     printf("],\"kernel_variant\":\"%s\",\"packing_layout\":\"%s\"}\n",
-           is_opt ? (job.direct_b ? "32x32-direct-b" : o.n%64 ? "32x32-fallback" : "16x64-blocked") : o.backend,
-           job.apple ? "native-row-major" : job.direct_b ? "A16-original-B" :
-           is_opt && o.n%64 == 0 ? "A16-B64" : "A16-B16");
+           job.apple ? "accelerate" : job.direct_b ? "32x32-direct-b" : "16x64-blocked",
+           job.apple ? "native-row-major" : job.direct_b ? "A16-original-B" : "A16-B64");
     free(job.a); free(job.b); free(job.c); free(job.ap); free(job.bp);
     return 0;
 }

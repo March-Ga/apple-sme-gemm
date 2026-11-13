@@ -1,17 +1,16 @@
 {
-  "started_at": "2026-11-13T12:14:49.192953+01:00",
+  "started_at": "2026-11-13T14:15:12.089513+01:00",
   "platform": "macOS-15.7.3-arm64-arm-64bit-Mach-O",
   "cpu": "Apple M4 Pro",
   "memory": "48 GB",
   "model": "Mac16,8",
   "cores": "proc 14:10:4",
-  "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=6750307)\t70%; discharging; 7:09 remaining present: true",
+  "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=6750307)\t61%; discharging; 9:14 remaining present: true",
   "python": "3.14.8 (main, Sep 30 2026, 17:55:09) [Clang 17.0.0 (clang-1700.6.4.2)]",
   "arguments": {
     "suite": "full",
     "sizes": null,
-    "modes": "compute,total",
-    "backends": "sme32,sme_opt,accelerate",
+    "backends": "sme,accelerate",
     "rounds": 3,
     "samples": 7,
     "warmup": 3,
@@ -42,18 +41,14 @@
       "-pthread"
     ],
     "source_sha256": {
-      "main.c": "45c4ad3699e7760a865a9f37b109d9fd8fbdbed37652f4aa466db72269dc68c6",
+      "main.c": "d1799ba43647675082e63d7d959d73ef56766846e5576ebaf493bc78c30fc215",
       "src/accelerate.c": "b0eb80ce377707b88330f341ff491e7219b050f880880ac2d23e6ad8e4587077",
-      "src/pack.c": "2af12ecbe9206e1ab47979c3124b1f9da73c5a1ced2a1619eb6fbe794e6ae930",
-      "src/pack_opt.c": "0171102f0f5b974e60af353e49f3b72eec51140783d6c4ef20558b80a92e5585",
-      "src/runtime.c": "7e5dd2851fc13ed744bc11ec42263bddfd76a5c7113f1f1a86cb5024afcc99ca",
-      "src/sme32.c": "c210b893a32938c2cd10c33560d0716293183abbebcc253605a13ae629dea356",
-      "src/sme_opt.c": "14c9e95c7cb2e1735847971302df197418a325e96571f58ac3c50f16cb2ba815",
-      "src/sme_pack.c": "e051c9c71a19471696a24bb74374501a0233c3c439ac84030459efbb5679f879",
-      "src/gemm.h": "74d662a19f6c13b95ed803c1ac39362fb30abad31ea74ac33f0c9b731243abed",
-      "build.py": "d60a479e2969f1a2752d0191e6fe50857c280f5237c36c5774317bb3f434381e"
+      "src/pack.c": "fe98d93a8678e2a2c50d3c1cf9808f85d6769e4f24c438481bbb781cd6249095",
+      "src/sme.c": "2017b65ce7d6b04cd2db50016f794ef151dfad4ed38627a1f823bb32a13f3e8e",
+      "src/gemm.h": "427b3953c33429d25200513cbf40af051dfd7c65ac237c29c8d084d4cfe53728",
+      "build.py": "73db3ab0a03dac274f23410ffe840734373ccb78b8ec21d3b4ecd2f7270aa799"
     },
-    "binary_sha256": "d58ffd492381924dec44dc78774ca67581e705b07989a16b95b3b0b33e183166",
+    "binary_sha256": "3691dafba4f43af474c7970b50a6269da710b2b0f4c57b9e3b64b51ba20fb9dc",
     "inspection": {
       "main": {
         "fmopa_tiles": [],
@@ -65,76 +60,52 @@
         "fmopa_tiles": [],
         "four_vector_loads": 0,
         "neon_fmla_count": 0,
-        "matrix_or_streaming_instructions": 0
-      },
-      "pack_opt": {
-        "fmopa_tiles": [],
-        "four_vector_loads": 0,
-        "neon_fmla_count": 0,
-        "matrix_or_streaming_instructions": 0
-      },
-      "runtime": {
-        "fmopa_tiles": [],
-        "four_vector_loads": 0,
-        "neon_fmla_count": 0,
-        "matrix_or_streaming_instructions": 0
-      },
-      "sme32": {
-        "fmopa_tiles": [
-          0,
-          1,
-          2,
-          3
-        ],
-        "four_vector_loads": 0,
-        "neon_fmla_count": 0,
-        "matrix_or_streaming_instructions": 12
-      },
-      "sme_opt": {
-        "fmopa_tiles": [
-          0,
-          1,
-          2,
-          3
-        ],
-        "four_vector_loads": 10,
-        "neon_fmla_count": 0,
-        "matrix_or_streaming_instructions": 52
-      },
-      "sme_pack": {
-        "fmopa_tiles": [],
-        "four_vector_loads": 0,
-        "neon_fmla_count": 0,
         "matrix_or_streaming_instructions": 4
+      },
+      "sme": {
+        "fmopa_tiles": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "four_vector_loads": 20,
+        "neon_fmla_count": 0,
+        "matrix_or_streaming_instructions": 92
+      },
+      "accelerate": {
+        "fmopa_tiles": [],
+        "four_vector_loads": 0,
+        "neon_fmla_count": 0,
+        "matrix_or_streaming_instructions": 0
       }
     },
     "tuning": {
-      "OPT_KC": 2048,
-      "OPT_MC": 256,
-      "OPT_NC": 512,
+      "KC": 2048,
+      "MC": 256,
+      "NC": 512,
       "DIRECT_B_MAX": 512
     },
     "format": "square FP32, row-major inputs, backend-specific packing, one thread"
   },
-  "runner_sha256": "8bb0d252db1ac061b440ada9107d151715b1b40b84d70af810a464bb63e707c6",
+  "runner_sha256": "3f54668515ea9fb5b8bef66a63f876638329dff244cdc240fc86fb30a6c2e538",
   "protocol": {
     "dtype": "fp32",
     "threads": 1,
-    "kc": 256,
+    "kc": 2048,
     "panel": 16,
-    "compute": "backend-specific preprocessed inputs; small optimized kernel uses original B; arithmetic and all C traffic included",
     "total": "packing required by the chosen backend on every call plus compute; Accelerate uses original row-major inputs",
     "excluded": "allocation, initialization, correctness verification, process startup and calibration",
     "sampling": "reused inputs; each sample is a batch average; not single-call tail latency",
     "parallelism": "one calling thread, USER_INITIATED QoS; Accelerate BLAS forced single-thread",
-    "sme_opt": {
-      "OPT_KC": 2048,
-      "OPT_MC": 256,
-      "OPT_NC": 512,
+    "sme": {
+      "KC": 2048,
+      "MC": 256,
+      "NC": 512,
       "DIRECT_B_MAX": 512,
       "microkernel": "16x64 blocked or 32x32 direct B; SME2",
       "packing": "SME transpose A; small sizes use original B, large sizes use tiled B64 packing; included in total",
-      "fallback": "N above DIRECT_B_MAX and not divisible by 64 uses baseline packing and sme32"
+      "tail": "Final 32 columns of packed B are zero-padded to 64; C is never padded or over-stored"
     }
   }
 }

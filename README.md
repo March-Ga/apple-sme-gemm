@@ -1,29 +1,18 @@
 # apple-sme-gemm
 
-A minimal, reproducible comparison of **optimized SME**, **original SME32**
-and **Apple Accelerate**. Written in C with intrinsics, using square FP32
-matrices and one thread. The kernels were validated on a MacBook Pro M4 Pro;
-the project is self-contained.
+A focused comparison of **SME** and **Apple Accelerate** for square FP32 matrix
+multiplication on Apple M4 Pro. The repository contains one final SME
+implementation, its packing code, the Accelerate wrapper, and the tools needed
+to verify and measure them.
 
-![M4 Pro throughput and speedup](examples/m4-pro/plots/comparison.png)
+![SME versus Accelerate](examples/m4-pro/plots/comparison.png)
 
-## Teaching slides
+## Run
 
-[`slides/`](slides/) contains a 22-slide English explanation of SME, visual
-kernel and packing diagrams, the original SME32 comparison with Accelerate,
-the optimization strategies, and the final throughput/speedup results.
-
-Open the [PDF](slides/sme-on-apple-m4-pro.pdf) or the
-[editable PowerPoint](slides/sme-on-apple-m4-pro.pptx). The folder also includes
-speaker notes, previews, chart assets and a generator that reads saved results
-without running a benchmark. See [slides/README.md](slides/README.md) to rebuild.
-
-## Quick start
-
-Requires macOS 15+, Apple Silicon with SME2 and a 512-bit streaming vector
-length, Command Line Tools supporting `apple-m4` (tested with Apple Clang 17),
-and Python 3.10+. Building, testing and benchmarking require only system
-tools and the Python standard library; plotting additionally requires Matplotlib.
+Requires macOS 15+, Apple Silicon with SME2 and 512-bit streaming vectors,
+Command Line Tools supporting `apple-m4` (tested with Apple Clang 17), and
+Python 3.10+. Building, testing and benchmarking use system tools and the Python
+standard library. Matplotlib is needed only for plots.
 
 ```sh
 python3 build.py
@@ -32,7 +21,7 @@ python3 benchmark.py --suite full --output results/run1
 python3 plot.py results/run1
 ```
 
-To install the plotting dependency in a local environment:
+Install the optional plotting dependency with:
 
 ```sh
 python3 -m venv .venv
@@ -40,123 +29,92 @@ python3 -m venv .venv
 .venv/bin/python plot.py results/run1
 ```
 
-Output directories must not already exist. For a short run, replace the
-benchmark command with:
+The output directory must not already exist. For a short run:
 
 ```sh
 python3 benchmark.py --suite quick --rounds 2 --samples 5 --min-sample-ms 20 --output results/quick
 ```
 
-The Makefile also provides `make build`, `make test`, `make quick`, `make bench`
-and `make plot`. Run `make bench plot OUT=results/run2` to build, benchmark
-and plot. Select an interpreter with `PYTHON=.venv/bin/python`.
+The Makefile provides `make test`, `make bench plot OUT=results/run1`, and
+`make quick plot OUT=results/quick`. Set `PYTHON=.venv/bin/python` when needed.
 
-## Implementations
+## Two backends
 
-| Backend | Strategy |
+| Backend | Implementation |
 | --- | --- |
-| `sme32` | Original 32×32 kernel, four ZA tiles, A16/B16 packing, K blocking of 256 |
-| `sme_opt` | Up to N=512: 32×32 kernel, A transposed in ZA, original row-major B without packing. Larger sizes: 16×64 kernel, SME2 four-vector loads, A16/B64 packing and blocking K=2048, M=256, N=512 |
-| `accelerate` | `cblas_sgemm`, with BLAS explicitly set to one thread |
+| `sme` | Final size-dependent SME2 implementation: ZA transpose of A; direct row-major B through N=512; otherwise 16×64 tiles, grouped B loads, A16/B64 packing, and KC=2048 / MC=256 / NC=512 blocking |
+| `accelerate` | `cblas_sgemm`, explicitly configured and checked for single-thread execution |
 
-For N>512 that is not divisible by 64, the optimized backend uses the original
-SME32 path. The SME kernels neither pad the matrices nor delegate to Accelerate.
-Supported dimensions are multiples of 32 from 32 to 8192. The JSON fields
-`kernel_variant` and `packing_layout` identify the selected path.
-Packing large B matrices uses blocks of 256 columns and 32 rows. The kernel
-loop is unrolled four times, without the earlier software pipeline that
-generated extra register copies with Clang 17.
+Both compute **C = A × B** from square row-major FP32 inputs, with alpha=1 and
+beta=0. Supported dimensions are multiples of 32 in [32,8192]. The small 32×32
+and large 16×64 kernels are complementary paths within the same SME backend.
+There are no experimental backends or calls from SME into Accelerate.
 
-## What the plots measure
+For a large N that is not divisible by 64, the final B panel contains 32 zero
+columns. The same 16×64 kernel skips C loads/stores for nonexistent columns;
+A and C retain their original dimensions. B packing uses 32-row × 256-column
+chunks. The arithmetic loop consumes each four-vector tuple in its own K
+iteration and is unrolled four times.
 
-| Mode | Timed work |
-| --- | --- |
-| `total` | Backend-specific packing plus the complete product; Accelerate receives row-major inputs |
-| `compute` | Product only, with inputs already prepared; the small optimized kernel keeps B row-major |
+`src/gemm.h` defines the interface, constants, and packed-B workspace size.
+`src/sme.c` implements SME; `src/pack.c` prepares its inputs;
+`src/accelerate.c` wraps BLAS. `main.c` owns timing and numerical verification.
 
-Accelerate appears only in `total`, because it does not expose the packing
-interface used by our kernels. The main comparison **includes packing**.
-Allocation, initialization, process startup, calibration and numerical
-verification are outside the timer. Buffers are aligned to 64 bytes.
+## What is measured
 
-- **Throughput**: `2*N³ / time_in_seconds / 10⁹`, in GFLOP/s.
-- **Speedup**: `baseline_time / backend_time`. Values above 1 mean the backend
-  is faster. The baseline is Accelerate in `total` and SME32 in `compute`.
-- Speedups pair backend medians within each round, then report the median
-  of those ratios. Shading shows the interquartile range (IQR) across rounds,
-  not a confidence interval. The ratio of pooled medians can differ.
+Every timed call includes required packing and the complete product. Allocation,
+initialization, startup, calibration and verification are outside the timer.
+There is one calling thread; Accelerate BLAS is forced to one thread.
 
-The full suite uses N=32…4096, three rounds and seven samples per job. Cases
-and backends are randomized with a reproducible seed. Each sample averages
-a batch calibrated to approximately 30 ms or longer; it does not measure
-individual-call tail latency. Inputs are reused, measuring steady-state work.
-`USER_INITIATED` QoS favors fast cores, but macOS controls scheduling. Keep
-power source, energy mode and competing workloads consistent between runs.
+- **Throughput:** `2*N³ / seconds / 10¹²`, reported in TFLOP/s in plots.
+- **Speedup:** `Accelerate_time / SME_time`; above 1 means SME is faster.
+- Speedups pair median timings within each round, then take the median ratio.
+  Shading is the interquartile range across rounds, not a confidence interval.
+  Throughput instead uses the pooled timing median; ratios can differ slightly.
 
-The comparison includes packing and algorithm differences: it measures
-implementations, not the isolated effect of the ISA. It does not measure
-the chip's maximum multicore throughput.
+The full suite uses N=32,64,128,256,512,1024,2048,4096, three randomized rounds,
+and seven samples per case: **48 jobs and 336 samples**. Each sample averages
+a batch calibrated to at least approximately 30 ms. Inputs are reused. The
+measurements describe steady-state work, not individual-call tail latency,
+cold-cache behavior, or maximum chip-wide multicore throughput. macOS controls
+scheduling; keep power mode and competing workloads consistent.
 
-## Results and validation
+Accelerate is a vendor library reference; its internal instruction path is not
+inspected. This comparison includes packing and algorithm choices, so it does
+not isolate the effect of the SME instruction set.
 
-`plots/comparison.png`, `.svg` and `.pdf` show throughput and speedup for
-both modes. Each run directory also contains:
+## Results and checks
 
-| File | Contents |
-| --- | --- |
-| `summary.csv` | Median times, quartiles and throughput per backend |
-| `speedups.csv` | Paired speedups against SME32 and Accelerate |
-| `raw.jsonl`, `samples.csv` | All raw job results and timing samples |
-| `verification.csv` | Numerical checks and input fingerprints |
-| `environment.json` | Hardware, compiler, options and source/binary hashes |
-| `status.json` | Suite completion status |
+[`examples/m4-pro/`](examples/m4-pro/) contains a complete fresh run of the
+current code: raw jobs, timing samples, summary and paired-speedup CSVs,
+verification results, hardware/compiler metadata, source/binary hashes, and
+PNG/SVG/PDF plots. The build and runner reject stale sources or binaries.
 
-`Ctrl+C` preserves completed jobs and partial reports. If a job fails,
-`failed_job.json` records the command needed to reproduce it.
+`check.py` uses AddressSanitizer and UndefinedBehaviorSanitizer. It checks every
+packed value and padded B value at 15 dimensions, then checks both backends at
+15 dimensions with two seeds, repeated output overwrites, output guards and
+an independent scalar double reference. Numerical checks cover all entries
+through N=192 and 512 entries at larger sizes, including explicit edge coverage.
+Benchmark jobs also verify output before and after sampling.
 
-`check.py` builds and runs tests with AddressSanitizer and UndefinedBehaviorSanitizer:
-complete packing checks at 12 dimensions, and GEMM checks at 15 dimensions
-with two seeds, two output overwrites, output guards and a scalar double
-reference. It checks every element through N=192 and 512 entries at larger
-sizes. Python tests cover pairing, metrics, reports without timings and dry runs.
-Each benchmark job also checks output before and after sampling: every element
-through N=128, otherwise 256 entries, plus a finiteness check on all output.
+The [cleanup validation](validation/cleanup/README.md) compares this code with
+the previously published optimized implementation using interleaved runs.
+Across the eight standard sizes, paired SME speedups were **0.996×–1.009×**.
+The two measured 32-column-tail cases improved. This is measured comparability
+on this machine, rather than a universal statistical equivalence claim.
 
-The build inspects disassembly for the four ZA tiles and the optimized
-kernel's multi-vector loads. The runner rejects sources or binaries that
-differ from the build manifest: run `python3 build.py` after changing C code.
-
-For custom sizes or numerical verification only:
+For custom dimensions or numerical checks without timing:
 
 ```sh
-python3 benchmark.py --sizes 32,64,96,320,544,1088,2080,2112 --verify-only --output results/checks
-python3 benchmark.py --sizes 512,1024 --modes total --output results/custom
+python3 benchmark.py --sizes 96,544,2080,8192 --verify-only --output results/checks
+python3 benchmark.py --sizes 512,1024 --output results/custom
 python3 benchmark.py --suite full --dry-run
 ```
 
-## Validated example
+## Slides
 
-[`examples/m4-pro/`](examples/m4-pro/) contains a full run performed from
-this repository: raw data, metadata and plots. These results are not universal;
-small differences should be interpreted alongside their variability.
-The optimized implementation does not beat Accelerate at every size.
-
-Local measurements on an M4 Pro with 48 GB RAM and Apple Clang 17, including packing:
-
-| N | SME32 GFLOP/s | Optimized GFLOP/s | Accelerate GFLOP/s | Optimized speedup over Accelerate |
-| ---: | ---: | ---: | ---: | ---: |
-| 128 | 640 | 1539 | 1407 | 1.09× |
-| 512 | 1342 | 1797 | 1792 | 1.00× |
-| 1024 | 1296 | 1702 | 1668 | 1.02× |
-| 2048 | 1095 | 1602 | 1696 | 0.95× |
-| 4096 | 945 | 1576 | 1571 | 1.01× |
-
-All 120 jobs and 840 samples passed verification. At N=2048, the optimized
-kernel is approximately 6% slower than Accelerate in this run; at N=4096,
-performance is effectively equal. Differences of a few percentage points
-do not establish a meaningful advantage without considering variability.
-
-Kernels live in `src/sme_opt.c` and `src/sme32.c`; packing is implemented in
-`src/pack*.c` and `src/sme_pack.c`. `main.c` handles timing and verification.
-The four Python scripts handle building, testing, benchmarking and plotting.
-No Eigen or other external BLAS dependency is required.
+[`slides/`](slides/) contains a 15-slide English explanation of SME, the final
+packing/kernel design, and its measured comparison with Accelerate:
+[PDF](slides/sme-on-apple-m4-pro.pdf),
+[editable PowerPoint](slides/sme-on-apple-m4-pro.pptx), and speaker notes.
+See [slides/README.md](slides/README.md) for rebuilding from existing results.

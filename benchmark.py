@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare optimized SME, original SME32 and Accelerate on square FP32 GEMM."""
+"""Compare SME and Accelerate on square FP32 GEMM, including packing."""
 import argparse
 from collections import defaultdict
 import csv
@@ -17,7 +17,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent
 BUILD = ROOT / "build"
-BACKENDS = ("sme32", "sme_opt", "accelerate")
+BACKENDS = ("sme", "accelerate")
 SUITES = {"quick": [32, 128, 512], "full": [32, 64, 128, 256, 512, 1024, 2048, 4096]}
 
 
@@ -36,7 +36,6 @@ def parse():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES, default="full")
     parser.add_argument("--sizes", help="Override suite, e.g. 32,64,288,1024; all multiples of 32")
-    parser.add_argument("--modes", default="compute,total", help="compute,total or one mode")
     parser.add_argument("--backends", default=",".join(BACKENDS))
     parser.add_argument("--rounds", type=positive, default=3)
     parser.add_argument("--samples", type=positive, default=7)
@@ -49,11 +48,9 @@ def parse():
     args = parser.parse_args()
     try:
         sizes = selection(args.sizes, positive) if args.sizes is not None else list(SUITES[args.suite])
-        modes, backends = selection(args.modes), selection(args.backends)
+        backends = selection(args.backends)
         if not sizes or any(n < 32 or n > 8192 or n%32 for n in sizes):
             raise ValueError("sizes must be multiples of 32 in [32,8192]")
-        if not modes or not set(modes) <= {"compute", "total"}:
-            raise ValueError("unknown or empty modes")
         if not backends or not set(backends) <= set(BACKENDS):
             raise ValueError("unknown or empty backends")
         if max(args.rounds, args.samples, args.warmup) > 100:
@@ -62,10 +59,7 @@ def parse():
             raise ValueError("min-sample-ms must be in [1,10000]")
         if not 0 <= args.seed < 2**64:
             raise ValueError("seed must fit uint64")
-        cases = [(size, mode) for size in sizes for mode in modes
-                 if any(mode == "total" or backend != "accelerate" for backend in backends)]
-        if not cases:
-            raise ValueError("Accelerate is available only in total mode")
+        cases = [(size, "total") for size in sizes]
     except (ValueError, argparse.ArgumentTypeError) as error:
         parser.error(str(error))
     return args, cases, backends
@@ -114,10 +108,8 @@ def summarize(records, output):
              "gflops", "samples"], summary)
     ratios = defaultdict(list)
     for (size, mode, _), times in paired.items():
-        for baseline, backend in (("sme32", "sme_opt"),
-                                  ("accelerate", "sme32"), ("accelerate", "sme_opt")):
-            if baseline in times and backend in times:
-                ratios[(size, mode, baseline, backend)].append(times[baseline]/times[backend])
+        if "accelerate" in times and "sme" in times:
+            ratios[(size, mode, "accelerate", "sme")].append(times["accelerate"]/times["sme"])
     speedups = [{"size": size, "mode": mode, "baseline": baseline, "backend": backend,
                  "speedup_median": statistics.median(values), "speedup_p25": quantile(values, .25),
                  "speedup_p75": quantile(values, .75), "paired_rounds": len(values)}
@@ -165,11 +157,11 @@ def check_build():
 def main():
     args, cases, backends = parse()
     rounds = 1 if args.verify_only else args.rounds
-    planned = rounds*sum(sum(mode == "total" or b != "accelerate" for b in backends) for _, mode in cases)
+    planned = rounds*len(cases)*len(backends)
     print(f"Square FP32, one thread, {rounds} round(s): {planned} jobs", flush=True)
     if args.dry_run:
         for size, mode in cases:
-            print(f"  N={size:4d} {mode:7s}: " + ", ".join(b for b in backends if mode == "total" or b != "accelerate"))
+            print(f"  N={size:4d} {mode:7s}: " + ", ".join(backends))
         print("Dry run: no binaries executed; no results created.")
         return 0
     manifest, binary = check_build()
@@ -183,16 +175,15 @@ def main():
         "arguments": {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         "effective_rounds": rounds, "build": manifest,
         "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "protocol": {"dtype": "fp32", "threads": 1, "kc": 256, "panel": 16,
-            "compute": "backend-specific preprocessed inputs; small optimized kernel uses original B; arithmetic and all C traffic included",
+        "protocol": {"dtype": "fp32", "threads": 1, "kc": manifest["tuning"]["KC"], "panel": 16,
             "total": "packing required by the chosen backend on every call plus compute; Accelerate uses original row-major inputs",
             "excluded": "allocation, initialization, correctness verification, process startup and calibration",
             "sampling": "reused inputs; each sample is a batch average; not single-call tail latency",
             "parallelism": "one calling thread, USER_INITIATED QoS; Accelerate BLAS forced single-thread"}}
-    environment["protocol"]["sme_opt"] = {
+    environment["protocol"]["sme"] = {
         **manifest["tuning"], "microkernel": "16x64 blocked or 32x32 direct B; SME2",
         "packing": "SME transpose A; small sizes use original B, large sizes use tiled B64 packing; included in total",
-        "fallback": "N above DIRECT_B_MAX and not divisible by 64 uses baseline packing and sme32"}
+        "tail": "Final 32 columns of packed B are zero-padded to 64; C is never padded or over-stored"}
     (output/"environment.json").write_text(json.dumps(environment, indent=2)+"\n")
     records, fingerprints = [], {}
     rng = random.Random(args.seed)
@@ -202,11 +193,11 @@ def main():
                 order = list(cases)
                 rng.shuffle(order)
                 for size, mode in order:
-                    candidates = [b for b in backends if mode == "total" or b != "accelerate"]
+                    candidates = list(backends)
                     rng.shuffle(candidates)
                     for backend in candidates:
                         print(f"[{len(records)+1}/{planned}] R{round_number} N={size} {mode} {backend}", flush=True)
-                        command = [str(binary), "--backend", backend, "--mode", mode, "--size", str(size),
+                        command = [str(binary), "--backend", backend, "--size", str(size),
                             "--samples", str(args.samples), "--warmup", str(args.warmup),
                             "--min-sample-ms", str(args.min_sample_ms), "--seed", str(args.seed)]
                         if args.verify_only:
@@ -219,12 +210,11 @@ def main():
                         record = json.loads(result.stdout)
                         if (record["size"], record["mode"], record["backend"], record["seed"], record["dtype"], record["threads"], record["kc"], record["panel"]) != (
                                 size, mode, backend, args.seed, "fp32", 1,
-                                manifest["tuning"]["OPT_KC"] if backend == "sme_opt" and
-                                (size <= manifest["tuning"]["DIRECT_B_MAX"] or size%64 == 0) else 256, 16):
+                                manifest["tuning"]["KC"] if backend == "sme" else 0, 16):
                             raise RuntimeError("Unexpected executable output")
                         if record["verification_only"] != args.verify_only or record["verified_entries"] < 1 or not math.isfinite(record["max_scaled_error"]):
                             raise RuntimeError("Invalid verification metadata")
-                        if backend in ("sme32", "sme_opt") and record["streaming_fp32_lanes"] != 16:
+                        if backend == "sme" and record["streaming_fp32_lanes"] != 16:
                             raise RuntimeError("Unexpected SME vector length")
                         if len(record["samples_ms"]) != (0 if args.verify_only else args.samples) or any(
                                 not math.isfinite(t) or t <= 0 for t in record["samples_ms"]):

@@ -17,22 +17,25 @@ static float *memory(size_t count) {
     assert(posix_memalign(&p, 64, count*sizeof(float)) == 0);
     return p;
 }
-static void check(size_t n, unsigned seed) {
+static void check(size_t n, unsigned seed, int apple) {
     const size_t count = n*n;
-    float *a=memory(count), *b=memory(count), *ap=memory(count), *bp=memory(count);
+    float *a=memory(count), *b=memory(count), *ap=memory(count), *bp=memory(sme_packed_b_count(n)+1);
     float *guarded=memory(count+32), *c=guarded+16;
     state=seed;
     for (size_t i=0;i<count;++i) { a[i]=value(); b[i]=value(); }
     for (size_t i=0;i<16;++i) guarded[i]=guarded[count+16+i]=12345;
-    pack_inputs_opt(n,a,b,ap,bp);
+    if (!apple) pack_inputs(n,a,b,ap,bp);
     const float *right=n <= DIRECT_B_MAX ? b : bp;
     // Two products into a dirty buffer check that beta=0 is respected.
     for (unsigned repeat=0;repeat<2;++repeat) {
         for (size_t x=0;x<count;++x) c[x]=repeat ? 17 : NAN;
-        gemm_sme_opt(n,ap,right,c);
+        if (apple) gemm_accelerate(n,a,b,c);
+        else gemm_sme(n,ap,right,c);
         const size_t checks=n<=192 ? count : 512;
         for (size_t t=0;t<checks;++t) {
-            const size_t position=n<=192 ? t : (t*104729+17)%count;
+            // Explicitly cover all columns in the final 32-column tail and boundary rows.
+            const size_t edge_row = (t/32)%4 == 0 ? 0 : (t/32)%4 == 1 ? 15 : (t/32)%4 == 2 ? n-16 : n-1;
+            const size_t position=n<=192 ? t : t<128 ? edge_row*n+n-32+t%32 : (t*104729+17)%count;
             const size_t row=position/n, col=position%n;
             double expected=0, scale=0;
             for (size_t k=0;k<n;++k) {
@@ -48,9 +51,11 @@ static void check(size_t n, unsigned seed) {
     free(a);free(b);free(ap);free(bp);free(guarded);
 }
 int main(void) {
+    assert(accelerate_prepare());
     const size_t ns[]={32,64,96,128,160,192,256,288,320,512,544,576,1088,2080,2112};
     for (size_t i=0;i<sizeof(ns)/sizeof(ns[0]);++i)
-        for (unsigned seed=1;seed<=2;++seed) check(ns[i],seed);
-    puts("SME numerical regression PASS: 15 sizes, 2 seeds, 2 overwrites, guard regions.");
+        for (unsigned seed=1;seed<=2;++seed)
+            for (int apple=0;apple<=1;++apple) check(ns[i],seed,apple);
+    puts("Numerical regression PASS: SME + Accelerate, 15 sizes, 2 seeds, 2 overwrites, output guards.");
     return 0;
 }
