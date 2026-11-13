@@ -1,0 +1,35 @@
+{
+  "data_source": "examples/m4-pro",
+  "input_sha256": {
+    "summary.csv": "d815be3cd9e8eb05441a9e29a1f086e56042d228082b9ad593cdee457c2df3f9",
+    "speedups.csv": "4108fa9f0db69a5b73a4cf04891977089b03030f676ca5249e7882a7501c73b3",
+    "raw.jsonl": "50baaba03c14ee66dfe2d2e61be57308c426e5e3e1617e240e991f2e0bd41f22",
+    "environment.json": "38fc733d64c4554e109e8592951823db9e635b9fd3aec0ce48f341755a731dc4",
+    "status.json": "a29a219bb277bf3beeeaf79380b8808aacbb389a10aa550327e97c7dda334c49",
+    "verification.csv": "b86146793f8385b0b9e788bf1a7336dc0817141238465698992b440520360b03"
+  },
+  "source_sha256": {
+    "main.c": "45c4ad3699e7760a865a9f37b109d9fd8fbdbed37652f4aa466db72269dc68c6",
+    "src/accelerate.c": "b0eb80ce377707b88330f341ff491e7219b050f880880ac2d23e6ad8e4587077",
+    "src/pack.c": "2af12ecbe9206e1ab47979c3124b1f9da73c5a1ced2a1619eb6fbe794e6ae930",
+    "src/pack_opt.c": "0171102f0f5b974e60af353e49f3b72eec51140783d6c4ef20558b80a92e5585",
+    "src/runtime.c": "7e5dd2851fc13ed744bc11ec42263bddfd76a5c7113f1f1a86cb5024afcc99ca",
+    "src/sme32.c": "c210b893a32938c2cd10c33560d0716293183abbebcc253605a13ae629dea356",
+    "src/sme_opt.c": "14c9e95c7cb2e1735847971302df197418a325e96571f58ac3c50f16cb2ba815",
+    "src/sme_pack.c": "e051c9c71a19471696a24bb74374501a0233c3c439ac84030459efbb5679f879",
+    "src/gemm.h": "74d662a19f6c13b95ed803c1ac39362fb30abad31ea74ac33f0c9b731243abed",
+    "build.py": "d60a479e2969f1a2752d0191e6fe50857c280f5237c36c5774317bb3f434381e"
+  },
+  "slides": 22,
+  "jobs": 120,
+  "samples": 840,
+  "benchmark_started_at": "2026-11-13T12:14:49.192953+01:00",
+  "charts": "Throughput from pooled timing medians; speedups from paired-round medians; shading is IQR, not CI.",
+  "checks": [
+    "Complete full suite",
+    "Throughput formula",
+    "Speedup medians and IQR against raw jobs",
+    "Measured sources match current sources",
+    "Text widths, slide boundaries and text collisions"
+  ]
+}

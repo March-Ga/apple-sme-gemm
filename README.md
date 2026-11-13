@@ -7,6 +7,17 @@ the project is self-contained.
 
 ![M4 Pro throughput and speedup](examples/m4-pro/plots/comparison.png)
 
+## Teaching slides
+
+[`slides/`](slides/) contains a 22-slide English explanation of SME, visual
+kernel and packing diagrams, the original SME32 comparison with Accelerate,
+the optimization strategies, and the final throughput/speedup results.
+
+Open the [PDF](slides/sme-on-apple-m4-pro.pdf) or the
+[editable PowerPoint](slides/sme-on-apple-m4-pro.pptx). The folder also includes
+speaker notes, previews, chart assets and a generator that reads saved results
+without running a benchmark. See [slides/README.md](slides/README.md) to rebuild.
+
 ## Quick start
 
 Requires macOS 15+, Apple Silicon with SME2 and a 512-bit streaming vector

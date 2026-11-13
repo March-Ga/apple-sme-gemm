@@ -1,0 +1,6 @@
+# Presentation generation only; benchmark dependencies remain unchanged.
+python-pptx==1.0.2
+reportlab==5.1.0
+matplotlib==3.10.8
+Pillow==12.1.0
+# Optional PNG previews and contact sheet: PyMuPDF==2.1
