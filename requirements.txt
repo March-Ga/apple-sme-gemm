@@ -1,0 +1,2 @@
+# Only plotting requires a third-party package.
+matplotlib==3.10.8
